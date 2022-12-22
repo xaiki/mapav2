@@ -1,18 +1,16 @@
 <script lang="ts">
- import { geoPath, geoMercator, select} from "d3";
+ import * as d3  from "d3";
  import {tile} from 'd3-tile';
  import * as topojson from 'topojson-client';
- export let topo;
- let selected = null;
+ export let width;
+ export let height;
 
- import { draw } from "svelte/transition";
- import { quadInOut } from "svelte/easing";
  const access_token ="pk.eyJ1Ijoic2VydWdlbmVyaXMiLCJhIjoiY2w3dzB4aHZyMDh1ZDN2cXRiZ3M2emh5OCJ9.w5ChPmWEjwfdL5Zbglcrmg";
  const tileset="mapbox.mapbox-streets-v8";
 
- const projection = geoMercator();
- const path = geoPath(projection);
- let geo = {comunas: {features: []}, barrios: {features: []}};
+ const projection = d3.geoMercator();
+ const path = d3.geoPath(projection);
+
  let urls = new Set();
 
  const url = (x, y, z) => {
@@ -25,80 +23,67 @@
      console.error(s)
      return ret;
  }
- const t = tile()
-     .size([600, 600])
-     .scale(projection.scale() * 2 * Math.PI)
-     .translate(projection([0, 0]));
 
- $: {
-     if (topo && topo.comunas && topo.barrios) {
-         console.error(topo)
-         geo.comunas = topojson.feature(topo.comunas, topo.comunas.objects.comunas)
-         geo.barrios = topojson.feature(topo.barrios, topo.barrios.objects.barrios)
-         geo.comunas.mesh = topojson.mesh(topo.comunas, topo.comunas.objects.comunas, (a,b) => a===b)
-         console.error()
-         projection.fitExtent([[0,0], [600,600]], geo.comunas )
-         t.scale(projection.scale() * 2 * Math.PI)
-                       .translate(projection([0, 0]))
+ Promise.all([
+     d3.json('./data/comunas.topo'),
+     d3.json('./data/barrios.topo')
+ ]).then(([comunas, barrios]) => {
+     console.error(comunas, barrios)
+     const t = tile()
+         .size([600, 600])
+         .scale(projection.scale() * 2 * Math.PI)
+         .translate(projection([0, 0]));
+
+     const topo = {
+         comunas: topojson.feature(comunas, comunas.objects.comunas),
+         barrios: topojson.feature(barrios, barrios.objects.barrios),
+         mesh: topojson.mesh(comunas, comunas.objects.comunas,
+                             (a,b) => a===b)
      }
- }
+     projection.fitExtent([[0,0], [600,600]], topo.comunas )
+     t.scale(projection.scale() * 2 * Math.PI)
+               .translate(projection([0, 0]))
+     const svg = d3.select('#svg');
+
+     svg
+                   .selectAll('.comuna')
+                   .data(topo.comunas.features, d => d.properties.COMUNAS)
+                   .join(
+                       enter => {
+                           const g = enter.append('g')
+                                          .attr('class', 'comuna')
+                                          .attr('id', d => d.properties.COMUNAS)
+                                          .on("mouseover", function() {
+                                              svg.selectAll('.comuna')
+                                              .classed('raised', false)
+                                              const sel = d3.select(this)
+                                              sel.raise()
+                                              .classed('raised', true)
+                                          })
+
+                           g.append('path')
+                                          .attr('d', path);
+
+                           g.append('g')
+                            .attr('class', 'barrios')
+                            .selectAll('.barrio')
+                            .data(d => topo.barrios.features.filter(function (f) {
+                                console.error(this, d)
+                                return f.properties.COMUNA === d.properties.COMUNAS
+                            }), d => d.properties.BARRIO)
+                            .join('path')
+                            .attr('class', 'barrio')
+                            .attr('id', d => d.properties.BARRIO)
+                            .attr('d', path)
+                       }
+
+                   )
+
+ }) 
 </script>
 
-<g>
-    <g class="map" class:selection={selected}>
-        <g class="contour">
-            <path d={path(geo.comunas.mesh)}/>
-        </g>
-        {#each geo.comunas.features as c}
-            {#if selected !== c}
-                <g
-                    class="cluster"
-                    key={c.properties.COMUNAS}
-                    id={c.properties.COMUNAS}>
-                    <g class="barrios">
-                        {#each geo.barrios.features as b}
-                            {#if b.properties.COMUNA === c.properties.COMUNAS}
-                                <path
-                                    class="barrio"
-                                    key={b.properties.ID}
-                                    id={b.properties.ID}
-                                    transition:draw={{ duration: 1000, delay: 0, easing: quadInOut }}
-                                    d={path(b)}
-                                />
-                            {/if}
-                        {/each}
-                    </g>
-                    <path
-                        class="comuna"
-                        transition:draw={{ duration: 1000, delay: 0, easing: quadInOut }}
-                        on:click={() => {selected = selected === c ? undefined:c}}
-                        on:keydown={() => {selected = selected === c ? undefined:c}}
-                        on:mouseenter={({target}) => select(target).raise()}
-                        d={path(c)}
-                    />
-                </g>
+<svg id="svg" class="map" {width} {height}></svg>
 
-            {/if}
-        {/each}
-    </g>
-
-    {#if selected}
-        <clipPath id={selected.properties.ID}>
-            <path d={path(selected)}/>
-        </clipPath>
-        <g  class="selected" clip-path="url({location}#{selected.properties.ID})">
-            <path
-                transition:draw={{ duration: 1000, delay: 0, easing: quadInOut }}
-                on:click={() => {selected = undefined}}
-                d={path(selected)}
-            />
-            {#each t().map(([x, y, z], i, {translate: [tx, ty], scale: k}) => [x,y,z,i,tx,ty,k]) as [x,y,z,i,tx,ty,k]}
-                <image xlink:href={url(x, y, z)} x={(x + tx) * k - 0.5} y={(y + ty) * k - 0.5} width={k + 1} height={k + 1} />
-                <image xlink:href={url(x, y, z)} x={(x + tx) * k} y={(y + ty) * k} width={k} height={k} />
-            {/each}
-        </g>
-    {/if}
-</g>        
 <style>
  .map {
      transition: all 200ms;
@@ -106,16 +91,21 @@
  .map.selection {
      transform: rotateX(45deg);
  }
- path {
+ :global(path) {
      fill: white;
      stroke: black;
      transition: all 200ms;
      transform-origin: center;
      transform-box: fill-box;
-
  }
- .barrio {
+
+ :global(.raised .barrio) {
+     opacity: 1;
+ }
+ :global(.barrio) {
      stroke: yellow;
+     opacity: 0;
+     transition: all 500ms;
  }
  .barrios {
      display: none;
@@ -130,7 +120,7 @@
      fill: black;
  }
 
- g {
+ :global(.comuna) {
      transform-box: fill-box;
      transform-origin: center;
  }
@@ -141,11 +131,14 @@
      transform-box: fill-box;
  }
 
- .cluster:hover {
-     fill: darkgreen;
+ :global(.comuna:hover) {
      transform: scale(1.5) ;
      z-index: 99;
  }
+ :global(.comuna:hover path) {
+     fill: darkgreen;
+ }
+
  .cluster:hover .barrios {
      display: block;
  }
