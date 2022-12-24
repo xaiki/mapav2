@@ -1,0 +1,28 @@
+path {
+    fill: transparent;
+    stroke: black;
+}
+
+.comuna {
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+.comuna:hover {
+    transform: scale(1.5);
+}
+
+.barrios {
+    opacity: 0;
+    transition: all 200ms;
+}
+
+.barrios path {
+    stroke: yellow;
+    stroke-width: 10px;
+
+}
+
+.comuna:hover .barrios {
+    opacity: 1;
+}
