@@ -1,4 +1,5 @@
 import './Map.css';
+import { useRef, useState, useEffect } from 'react';
 
 import * as d3 from "d3";
 import { tile } from 'd3-tile';
@@ -14,14 +15,17 @@ const url = URLs["Stamen Toner"];
 type TileCoords = { x: number, y: number, z: number, tx: number, ty: number, k: number }
 
 function Map({ width, height }: { width: number, height: number }) {
+    const svgRef = useRef(null);
+    const [data, setData] = useState<topoJSON[2]>([]);
+
     Promise.all([
         d3.json('./data/comunas.topo'),
         d3.json('./data/barrios.topo')
-    ]).then(([comunas, barrios]: [topoJSON, topoJSON]) => {
-        const t = tile()
-            .size([600, 600])
-            .scale(projection.scale() * 2 * Math.PI)
-            .translate(projection([0, 0]));
+    ]).then(setData)
+
+    useEffect(() => {
+        const [comunas, barrios] = data;
+        if (!(comunas && barrios)) return;
 
         const topo = {
             comunas: topojson.feature(comunas, comunas.objects.comunas),
@@ -29,10 +33,13 @@ function Map({ width, height }: { width: number, height: number }) {
             mesh: topojson.mesh(comunas, comunas.objects.comunas,
                 (a, b) => a === b)
         }
-        projection.fitExtent([[0, 0], [600, 600]], topo.comunas)
+        const t = tile()
+            .size([width, height])
+        projection.fitExtent([[0, 0], [width, height]], topo.comunas)
         t.scale(projection.scale() * 2 * Math.PI)
             .translate(projection([0, 0]))
-        const svg = d3.select('#svg');
+
+        const svg = d3.select(svgRef.current);
         svg.selectAll('*').remove();
         svg.append('defs').append('g').attr('id', 'tiles')
             .selectAll('.tile')
@@ -83,8 +90,8 @@ function Map({ width, height }: { width: number, height: number }) {
                     return g;
                 }
             )
-    })
-    return (<svg id="svg" className="map" width={width} height={height}></svg>)
+    }, [svgRef.current])
+    return (<svg className="map" width={width} height={height} ref={svgRef}></svg>)
 }
 
 export default Map;
