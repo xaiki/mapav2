@@ -3,13 +3,9 @@ path {
     stroke: black;
 }
 
-.comuna {
+.comunas {
     transform-box: fill-box;
     transform-origin: center;
-}
-
-.comuna:hover {
-    transform: scale(1.5);
 }
 
 .barrios {
@@ -18,11 +14,31 @@ path {
 }
 
 .barrios path {
-    stroke: yellow;
-    stroke-width: 10px;
-
+    stroke: transparent;
+    stroke-width: 0.1em;
+    fill: yellow;
+    stroke: green;
 }
 
-.comuna:hover .barrios {
+.comuna:hover .barrios, .selected .barrios{
     opacity: 1;
+}
+
+.comuna:hover .comuna-text {
+    opacity: 0;
+}
+
+.barrios use {
+    opacity: 0;
+}
+
+.selected .barrios path {
+    fill: transparent;
+}
+.selected .barrios use {
+    opacity: 1;
+}
+
+.selected .barrios text {
+    opacity: 0;
 }
