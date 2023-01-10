@@ -12,16 +12,17 @@ const projection = d3.geoMercator();
 const path = d3.geoPath(projection);
 
 const url = URLs["Stamen Toner"];
-type TileCoords = { x: number, y: number, z: number, tx: number, ty: number, k: number }
 
 function Map({ width, height }: { width: number, height: number }) {
     const svgRef = useRef(null);
     const [data, setData] = useState<topoJSON[2]>([]);
 
+    useEffect(() => {
     Promise.all([
         d3.json('./data/comunas.topo'),
         d3.json('./data/barrios.topo')
     ]).then(setData)
+    }, [])
 
     useEffect(() => {
         const [comunas, barrios] = data;
