@@ -2,7 +2,7 @@ import './Map.css';
 import { useRef, useState, useEffect } from 'react';
 
 import * as d3 from "d3";
-import { tile } from 'd3-tile';
+import { tile, tileWrap } from 'd3-tile';
 import * as topojson from 'topojson-client';
 import { topoJSON } from 'topojson-client';
 
@@ -30,33 +30,34 @@ function Map({ width, height }: { width: number, height: number }) {
         const topo = {
             comunas: topojson.feature(comunas, comunas.objects.comunas),
             barrios: topojson.feature(barrios, barrios.objects.barrios),
-            mesh: topojson.mesh(comunas, comunas.objects.comunas,
-                (a, b) => a === b)
         }
-        const t = tile()
-            .size([width, height])
-        projection.fitExtent([[0, 0], [width, height]], topo.comunas)
-        t.scale(projection.scale() * 2 * Math.PI)
-            .translate(projection([0, 0]))
+
+        projection.fitSize([width, height], topo.comunas)
 
         const svg = d3.select(svgRef.current);
         svg.selectAll('*').remove();
-        svg.append('defs').append('g').attr('id', 'tiles')
+        let images = svg.append('defs').append('g').attr('id', 'tiles')
+        const runTiles = () => {
+            const tiler = tile()
+                .size([width, height])
+                .scale(projection.scale() * 2 * Math.PI)
+                .translate(projection([0, 0]))
+
+            let tiles = tiler();
+            const { translate: [tx, ty], scale: k } = tiles;
+            images
             .selectAll('.tile')
-            .data(t().map(([x, y, z]: number[],
-                _i: number,
-                { translate: [tx, ty], scale: k }: { translate: number[], scale: number }
-            ) => ({ x, y, z, tx, ty, k })))
+                .data(tiles, d => d)
             .join('image')
             .attr('class', 'tile')
-            .attr('xlink:href', ({ x, y, z }) => url(x, y, z))
-            .attr('x', ({ x, tx, k }) => Math.round((x + tx) * k))
-            .attr('y', ({ y, ty, k }) => Math.round((y + ty) * k))
-            .attr('width', ({ k }) => k)
-            .attr('height', ({ k }) => k)
-
-        const cprop = (d: topoJSON) => `comuna${d.properties.ID}`;
-        svg.append('g').attr('class', 'comunas')
+                .attr('xlink:href', (d) => url(...tileWrap(d)))
+                .attr('x', ([x]) => Math.round((x + tx) * k))
+                .attr('y', ([, y]) => Math.round((y + ty) * k))
+                .attr('width', k)
+                .attr('height', k)
+            return tiles
+        }
+        runTiles();
             .selectAll('.comuna')
             .data(topo.comunas.features, d => d.properties.COMUNAS)
             .join(
